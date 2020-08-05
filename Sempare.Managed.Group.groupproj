@@ -1,0 +1,48 @@
+﻿<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+    <PropertyGroup>
+        <ProjectGuid>{8D5C24C7-2C50-479B-B2F4-F0AFC64AA838}</ProjectGuid>
+    </PropertyGroup>
+    <ItemGroup>
+        <Projects Include="Sempare.Managed.Tester.dproj">
+            <Dependencies/>
+        </Projects>
+        <Projects Include="Sempare.Managed.Pkg.dproj">
+            <Dependencies/>
+        </Projects>
+    </ItemGroup>
+    <ProjectExtensions>
+        <Borland.Personality>Default.Personality.12</Borland.Personality>
+        <Borland.ProjectType/>
+        <BorlandProject>
+            <Default.Personality/>
+        </BorlandProject>
+    </ProjectExtensions>
+    <Target Name="Sempare_Managed_Tester">
+        <MSBuild Projects="Sempare.Managed.Tester.dproj"/>
+    </Target>
+    <Target Name="Sempare_Managed_Tester:Clean">
+        <MSBuild Projects="Sempare.Managed.Tester.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Sempare_Managed_Tester:Make">
+        <MSBuild Projects="Sempare.Managed.Tester.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Sempare_Managed_Pkg">
+        <MSBuild Projects="Sempare.Managed.Pkg.dproj"/>
+    </Target>
+    <Target Name="Sempare_Managed_Pkg:Clean">
+        <MSBuild Projects="Sempare.Managed.Pkg.dproj" Targets="Clean"/>
+    </Target>
+    <Target Name="Sempare_Managed_Pkg:Make">
+        <MSBuild Projects="Sempare.Managed.Pkg.dproj" Targets="Make"/>
+    </Target>
+    <Target Name="Build">
+        <CallTarget Targets="Sempare_Managed_Tester;Sempare_Managed_Pkg"/>
+    </Target>
+    <Target Name="Clean">
+        <CallTarget Targets="Sempare_Managed_Tester:Clean;Sempare_Managed_Pkg:Clean"/>
+    </Target>
+    <Target Name="Make">
+        <CallTarget Targets="Sempare_Managed_Tester:Make;Sempare_Managed_Pkg:Make"/>
+    </Target>
+    <Import Project="$(BDS)\Bin\CodeGear.Group.Targets" Condition="Exists('$(BDS)\Bin\CodeGear.Group.Targets')"/>
+</Project>

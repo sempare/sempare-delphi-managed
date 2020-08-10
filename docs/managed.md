@@ -16,23 +16,32 @@ On assignment, the source container is cleared and the target container disposes
 
 ### Usage
 
+
 ```
-var unique := Managed<TObject>.Create(TObject.Create);
-//var unique : Managed<TObject> = TObject.Create; // using the implicit operator
-
-Assert.IsNotNull(unique.Value);
-
-var anotherUnique : Managed<TObject> = anotherUnique;
-Assert.IsNull(unique.Value);
-Assert.IsNotNull(anotherUnique.Value);
-
-
-unique := TObject.Create;
-with unique.value do 
 begin
-	// do something
+	var managedVal := Managed<TObject>.Create(TObject.Create);
+	Assert.IsNotNull(managedVal.Value);
 end;
-// object will be freed when the scope exists
 
+```
+
+
+```
+type
+	TMyClass = class
+	public
+		procedure doSomething();
+	end;
+
+var 
+	container : Managed<TObject>;
+begin
+	container := TObject.Create;
+	Assert.IsNotNull(container.Value);
+	with container.value do 
+	begin
+		doSomething();
+	end;
+end;
 
 ```

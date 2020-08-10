@@ -44,14 +44,18 @@ uses
 type
   (*
     Optional<T> is fairly simple. Using FFlags, it tracks what it needs
-    to do. The developer must be aware that setting ofManaged on a
+    to do.
+
+    The developer must be aware that setting ofManaged on a
     non-pointer T will cause trouble.
 
   *)
   Optional<T> = record
   type
+    // flags to manage internal state
     TOptionalFlag = (ofHasValue, ofManaged, ofFreeMem);
     TOptionalFlags = set of TOptionalFlag;
+    // flag used on constructor
     TOptionalManaged = (opUnmanaged, opManaged);
   strict private
     FValue: T;
@@ -63,8 +67,7 @@ type
     function GetUseFreeMem: boolean;
     procedure SetUseFreeMem(const Value: boolean);
   public
-    constructor Create(const AValue: T;
-      const AManaged: TOptionalManaged = opUnmanaged);
+    constructor Create(const AValue: T; const AManaged: TOptionalManaged = opUnmanaged);
     procedure Clear(); inline;
 
 {$IFDEF HAS_MANAGED_RECORD_SUPPORT}
@@ -80,12 +83,26 @@ type
   end;
 {$IFDEF USE_INTERFACE}
 
+  (*
+    IManaged<T : class> is an interface to allow for automatic finalisation
+    of an object in Delphi versions where managed records are not supported (pre 10.4)
+  *)
   IManaged<T: class> = interface
     function GetValue: T;
     property Value: T read GetValue;
   end;
 {$ENDIF}
 
+  (*
+    Managed<T: class> is a record used for managing a class type. The object
+    will be Freed automatically when the managed record goes out of scope.
+
+    On assignment, the target disposes of the object it was managing and
+    takes the value from the source object. the source managed pointer is set to nil
+    so only one managed<t> controls the lifetime of the object.
+
+    On pre Delphi 10.4, IManaged<t> is used as described above.
+  *)
   Managed<T: class> = record
   private
 {$IFDEF USE_INTERFACE}
@@ -98,8 +115,7 @@ type
   public
     class operator Implicit(const AValue: T): Managed<T>; static;
 {$IFDEF HAS_MANAGED_RECORD_SUPPORT}
-    class operator Assign(var AValue: Managed<T>;
-      var AOther: Managed<T>); static;
+    class operator Assign(var AValue: Managed<T>; var AOther: Managed<T>); static;
     class operator Initialize(out AValue: Managed<T>);
     class operator Finalize(var AValue: Managed<T>);
 {$ENDIF}
@@ -108,6 +124,10 @@ type
     property Value: T read GetValue;
   end;
 
+  (*
+    Shared<T: class> is a managed record that holds  counter to manage the lifetime of
+    an object. When the counter reaches 0, the object is disposed.
+  *)
   Shared<T: class> = record
 {$IFDEF HAS_MANAGED_RECORD_SUPPORT}
   type
@@ -142,14 +162,23 @@ type
     property Value: T read GetValue;
   end;
 
+  (*
+    IEventually is the interface for calling a procedure or method on an object.
+  *)
   IEventually = interface
     ['{A3B09B57-7001-4D58-AD78-699ED543CC17}']
   end;
 
+  (*
+    Eventually provides some class methods to allow for automatic
+    calling of a method or procedure when the scope exists.
+  *)
   Eventually = record
   type
     TEventuallyProc = reference to procedure();
     TEventuallyMethod = procedure() of object;
+    TEventuallyContextProc<T> = reference to procedure(const AContext: T);
+    TEventuallyContextMethod<T> = procedure(const AContext: T) of object;
 
     TEventuallyProcHelper = class(TInterfacedObject, IEventually)
     strict private
@@ -167,14 +196,37 @@ type
       destructor Destroy; override;
     end;
 
+    TEventuallyContextProcHelper<T> = class(TInterfacedObject, IEventually)
+    strict private
+      FContext: T;
+      FEventually: TEventuallyContextProc<T>;
+    public
+      constructor Create(const AContext: T; const AValue: TEventuallyContextProc<T>);
+      destructor Destroy; override;
+    end;
+
+    TEventuallyContextMethodHelper<T> = class(TInterfacedObject, IEventually)
+    strict private
+      FContext: T;
+      FEventually: TEventuallyContextMethod<T>;
+    public
+      constructor Create(const AContext: T; const AValue: TEventuallyContextMethod<T>);
+      destructor Destroy; override;
+    end;
+
   strict private
     FEventually: IEventually;
   public
+    constructor Create(const AValue: IEventually); overload;
     constructor Create(const AValue: TEventuallyProc); overload;
     constructor Create(const AValue: TEventuallyMethod); overload;
     class operator Implicit(const AValue: TEventuallyProc): Eventually; static;
-    class operator Implicit(const AValue: TEventuallyMethod)
-      : Eventually; static;
+    class operator Implicit(const AValue: TEventuallyMethod): Eventually; static;
+
+    class function Call(const AValue: TEventuallyProc): Eventually; overload; static;
+    class function Call(const AValue: TEventuallyMethod): Eventually; overload; static;
+    class function Call<T>(const AContext: T; const AValue: TEventuallyContextProc<T>): Eventually; overload; static;
+    class function Call<T>(const AContext: T; const AValue: TEventuallyContextMethod<T>): Eventually; overload; static;
   end;
 
 {$IFDEF USE_INTERFACE}
@@ -240,8 +292,7 @@ begin
   result := Optional<T>.Create(AValue);
 end;
 
-constructor Optional<T>.Create(const AValue: T;
-  const AManaged: TOptionalManaged);
+constructor Optional<T>.Create(const AValue: T; const AManaged: TOptionalManaged);
 begin
   IsManaged := opManaged = AManaged;
   SetValue(AValue);
@@ -357,8 +408,7 @@ end;
 
 {$IFDEF HAS_MANAGED_RECORD_SUPPORT}
 
-class operator Shared<T>.Assign(var AValue: Shared<T>;
-  const [ref] AOther: Shared<T>);
+class operator Shared<T>.Assign(var AValue: Shared<T>; const [ref] AOther: Shared<T>);
 begin
   if @AValue = @AOther then
     exit;
@@ -404,8 +454,7 @@ end;
 
 {$IFDEF HAS_MANAGED_RECORD_SUPPORT}
 
-class operator Managed<T>.Assign(var AValue: Managed<T>;
-  var AOther: Managed<T>);
+class operator Managed<T>.Assign(var AValue: Managed<T>; var AOther: Managed<T>);
 begin
   if @AValue = @AOther then
     exit;
@@ -471,6 +520,26 @@ begin
   FEventually := TEventuallyProcHelper.Create(AValue);
 end;
 
+class function Eventually.Call(const AValue: TEventuallyProc): Eventually;
+begin
+  result := Eventually.Create(AValue);
+end;
+
+class function Eventually.Call(const AValue: TEventuallyMethod): Eventually;
+begin
+  result := Eventually.Create(AValue);
+end;
+
+class function Eventually.Call<T>(const AContext: T; const AValue: TEventuallyContextProc<T>): Eventually;
+begin
+  result := Eventually.Create(TEventuallyContextProcHelper<T>.Create(AContext, AValue));
+end;
+
+class function Eventually.Call<T>(const AContext: T; const AValue: TEventuallyContextMethod<T>): Eventually;
+begin
+  result := Eventually.Create(TEventuallyContextMethodHelper<T>.Create(AContext, AValue));
+end;
+
 constructor Eventually.Create(const AValue: TEventuallyMethod);
 begin
   FEventually := TEventuallyMethodHelper.Create(AValue);
@@ -481,6 +550,11 @@ begin
   result := Eventually.Create(AValue);
 end;
 
+constructor Eventually.Create(const AValue: IEventually);
+begin
+  FEventually := AValue;
+end;
+
 class operator Eventually.Implicit(const AValue: TEventuallyMethod): Eventually;
 begin
   result := Eventually.Create(AValue);
@@ -488,8 +562,7 @@ end;
 
 { Eventually.TEventuallyProcHelper }
 
-constructor Eventually.TEventuallyProcHelper.Create(const AValue
-  : TEventuallyProc);
+constructor Eventually.TEventuallyProcHelper.Create(const AValue: TEventuallyProc);
 begin
   FEventually := AValue;
 end;
@@ -502,8 +575,7 @@ end;
 
 { Eventually.TEventuallyMethodHelper }
 
-constructor Eventually.TEventuallyMethodHelper.Create
-  (const AValue: TEventuallyMethod);
+constructor Eventually.TEventuallyMethodHelper.Create(const AValue: TEventuallyMethod);
 begin
   FEventually := AValue;
 end;
@@ -512,6 +584,36 @@ destructor Eventually.TEventuallyMethodHelper.Destroy;
 begin
   if assigned(FEventually) then
     FEventually();
+end;
+
+{ Eventually.TEventuallyContextProcHelper<T> }
+
+constructor Eventually.TEventuallyContextProcHelper<T>.Create(const AContext: T; const AValue: TEventuallyContextProc<T>);
+begin
+  FContext := AContext;
+  FEventually := AValue;
+end;
+
+destructor Eventually.TEventuallyContextProcHelper<T>.Destroy;
+begin
+  if assigned(FEventually) then
+    FEventually(FContext);
+  inherited;
+end;
+
+{ Eventually.TEventuallyMethodHelper<T> }
+
+constructor Eventually.TEventuallyContextMethodHelper<T>.Create(const AContext: T; const AValue: TEventuallyContextMethod<T>);
+begin
+  FContext := AContext;
+  FEventually := AValue;
+end;
+
+destructor Eventually.TEventuallyContextMethodHelper<T>.Destroy;
+begin
+  if assigned(FEventually) then
+    FEventually(FContext);
+  inherited;
 end;
 
 end.

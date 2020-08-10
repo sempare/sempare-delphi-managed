@@ -26,12 +26,30 @@ This container does not free the contained object.
 
 ```
 var optional := Optional<boolean>.Create(true);
-//var optional : Optional<boolean> = true; // using the implicit operator
-
-optional.IsManaged := true;
-
 Assert.IsTrue(optional.HasValue);
-Assert.IsTrue(optional.Value);
-optional.Clear();
+```
+
+```
+var optional : Optional<boolean> = true; // using the implicit operator
+Assert.IsTrue(optional.HasValue);
+```
+
+```
+var optional : Optional<boolean>
 Assert.IsFalse(optional.HasValue);
+```
+
+```
+var optional := Optional<TObject>.Create(TObject.Create(), opManaged);
+```
+
+```
+var optional : Optional<TObject>;
+
+begin
+	Assert.IsFalse(optional.HasValue);
+	optional := TObject.Create;
+	optional.IsManaged := true;
+	Assert.IsTrue(optional.HasValue);
+end;
 ```
